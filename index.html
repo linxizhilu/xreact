@@ -52,38 +52,24 @@ Component.prototype = Object.assign(Component.prototype,{
         if(arguments.length>0){
             this.props = props;
             this.children = children;
-            this.version=Math.random();
+            this.version = Math.random();
         }
     },
     setState(key,value){
-        this.version=this.version*Math.random();
+        if( arguments.length == 0 )return;
+        this.version = Math.random();
         this.state[key] = value;
         this.node = this.node || document.getElementById('comp'+this.compUid);
-        renderToDom(this.template(),this.node);
+        this.reRender();
     },
     render(){
-        var _this = this,
-            name = _this.name,
-            i = 0,
-            len = arguments.length,
-            parentComp = len > i ? arguments[i++] : '',
-            template,
-            tempObj = {
-                version:_this.version,
-                cacheResult : ''
-            }
-        if(len>0){
-            if(arguments.length>i)this.update.apply(this,util.slice.call(arguments,i));
-            if(parentComp.subComponents){
-                if( !parentComp.subComponents[name] || parentComp.subComponents[name].version != _this.version){
-                    tempObj.cacheResult = _this.template();
-                    parentComp.subComponents[name] = tempObj;
-                }
-                // console.log(parentComp.subComponents[name].version, _this.version)
-                return `<div id="comp${_this.compUid}">${parentComp.subComponents[name].cacheResult}</div>`;
-            }
-        }
-        return `<div id="comp${_this.compUid}">${_this.template()}</div>`;
+        var _this = this;
+        if(arguments.length > 0)_this.update.apply(_this,arguments);
+        return `<div data-type="component" id="comp${_this.compUid}">${_this.template()}</div>`;
+    },
+    reRender(){
+        var _this = this;
+        renderToDom(this.template(),this.node);
     }
 })
 // 将组件渲染到dom节点中
@@ -98,14 +84,15 @@ function renderToDom(html,parent){
 var comp1 = new Component({name:'comp1'});
 var comp2 = new Component({name:'comp2'});
 var comp3 = new Component({name:'comp3'});
+
 comp1.template= function(){
     var _this = this
     return `<div>
                 <p>
-                    ${comp3.render(_this)}
+                    ${comp3.render()}
                 </p>
                 <span>分隔符</span>
-                ${comp2.render(_this,{name:this.state.name},'<i>children<i>')}
+                ${comp2.render({name:this.state.name},'<i>children<i>')}
             </div>`;
 }
 comp2.template=function(){
@@ -130,7 +117,7 @@ comp3.template=function(){
     document.getElementById('change').onclick=function(){
         console.time();
         comp1.setState('name',new Date().getTime());
-        comp3.setState('name',Math.random()*100);
+        // comp3.setState('name',Math.random()*100);
         console.timeEnd();
     }
 </script>
