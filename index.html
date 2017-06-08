@@ -17,13 +17,13 @@
         ary :[],
         slice : ([]).slice
     }
-    function Component(state,name){
+    function Component(options){
         // number 每个插件一个id编号
         this.compUid = ++compUid;
         // 名称每个实例一个唯一名称
-        this.name = name || 'name'+this.compUid;
+        this.name = 'name'+this.compUid;
         // object 用来存放组件自有数据
-        this.state = state || {};
+        this.state =  {};
         // node 存放生成的组件节点
         this.node = null;
         // object 存放父级传入的数据
@@ -45,9 +45,12 @@
                 }
             */
         };
+        for(let key in options){
+            this[key] = options[key];
+        }
+        components[this.name] = this;
     };
 Component.prototype = Object.assign(Component.prototype,{
-    template(){},
     update(props,children){
         if(arguments.length>0){
             this.props = props;
@@ -58,67 +61,179 @@ Component.prototype = Object.assign(Component.prototype,{
     setState(key,value){
         if( arguments.length == 0 )return;
         this.version = Math.random();
+        if(this.state[key] === value){
+            return;
+        }
         this.state[key] = value;
-        this.node = this.node || document.getElementById('comp'+this.compUid);
-        this.reRender();
+        this.reRender(this.state);
     },
-    render(){
-        var _this = this;
-        if(arguments.length > 0)_this.update.apply(_this,arguments);
-        return `<div data-type="component" id="comp${_this.compUid}">${_this.template()}</div>`;
+    render(data,children){
+        this.state =Object.assign({},this.state,typeof data == 'string' ? JSON.parse(data||'') : data ) || this.state;
+        this.children = children || this.children;
+        var html = this.template(),
+            fragment = document.createDocumentFragment(),
+            section = document.createElement('section');
+            section.innerHTML = html;
+            fragment.append(section);
+        var componentsDom = fragment.querySelectorAll('component'),
+            length = componentsDom.length,
+            component,
+            props,
+            childrenHTML,
+            subComponentsDom,
+            subComponentDom;
+            if(length>0){
+                for(let componentDom,level,id,i=0;i<length;i++){
+                    componentDom = componentsDom[i];
+                    if((level = Number( componentDom.dataset.level)) === 1 ){
+                        id = componentDom.id;
+                        props = componentDom.dataset.props;
+                        // 更新子组件的level;
+                        let sublen,
+                            subi=0;
+                        subComponentsDom = componentDom.querySelectorAll('component');
+                        if((sublen=subComponentsDom.length)>0){
+                            for(;subi<sublen;subi++){
+                                subComponentDom = subComponentsDom[subi];
+                                subComponentDom.dataset.level = Number(subComponentDom.dataset.level)-1;
+                            }
+                        }
+                        // 获取子组件html
+                        childrenHTML = componentDom.innerHTML;
+                        component = components[id];
+                        if(component){
+                            let subNode = component.render(props,childrenHTML);
+                            componentDom.innerHTML = '';
+                            componentDom.removeAttribute('data-props');
+                            componentDom.removeAttribute('data-level');
+                            componentDom.appendChild(subNode);
+                        }
+                    }
+                }
+            }
+            this.drawEvents && this.drawEvents(fragment);
+        return fragment;
     },
-    reRender(){
-        var _this = this;
-        renderToDom(this.template(),this.node);
+    reRender(data,children){
+        var _this = this,
+            name = _this.name,
+            compontWrapperDom = document.getElementById(name),
+            oldDom = compontWrapperDom.firstChild,
+            // oldTotalDoms = oldDom.querySelectorAll('*'),
+            newDom = _this.render(data,children)
+            // newTotalDoms = newDom.querySelectorAll('*');
+            // console.log(newTotalDoms[0],oldTotalDoms[0],oldTotalDoms[0].isEqualNode(newTotalDoms[0]));
+            console.log(oldDom,newDom.firstChild,oldDom.isEqualNode(newDom.firstChild));
+            if(oldDom.isEqualNode(newDom.firstChild))return;
+
+
+        compontWrapperDom.replaceChild(newDom,oldDom);
     }
 })
 // 将组件渲染到dom节点中
-function renderToDom(html,parent){
-    if(typeof html =='string'){
-        parent.innerHTML = html;
-    }else{
-        parent.appendChild(html);
+function renderToDom(fragment,parent){
+    parent.appendChild(fragment);
+}
+var c1 = new Component({
+    template:function(){
+        var html = [];
+        for(var i =0 ;i<1;i++){
+            html.push(`<div>
+                            <div>
+                                header
+                            </div>
+                            <component id="cp2" data-level=1  data-props='${ JSON.stringify(this.state) }'>
+                                <div>content1</div>
+                                <p><img src="${this.state.img}"></im></p>
+                                <button> 测试1 </button>
+                                <component id="cp3" data-level=2   data-props='{"a":"a"}'></component>
+                            </component>
+                            <div>
+                                footer
+                            </div>
+                        </div>`)
+        }
+
+        return html.join('');
+        return    `<div>
+                        <div>
+                            header
+                        </div>
+                        <component id="cp2" data-level=1  data-props='${ JSON.stringify(this.state) }'>
+                            <div>content1</div>
+                            <p>conent2</p>
+                            <button> 测试1 </button>
+                            <component id="cp3" data-level=2   data-props='{"a":"a"}'></component>
+                        </component>
+                        <div>footer</div>
+                    </div>`
+    },
+    name:"app"
+})
+var c2 = new Component({
+    template:function(){
+        return    `<idv>
+                        <div>
+                            <h1>sub content</h1>
+                            <p>title cp2</p>
+                            <p>${this.state.name}</p>
+                        </div>
+                        ${this.children}
+                    </idv>`
+    },
+    name:"cp2",
+    drawEvents(fragment){
+        fragment.querySelector('button').addEventListener('click',function(){
+            console.log(this.tagName);
+        })
     }
-}
-
-var comp1 = new Component({name:'comp1'});
-var comp2 = new Component({name:'comp2'});
-var comp3 = new Component({name:'comp3'});
-
-comp1.template= function(){
-    var _this = this
-    return `<div>
-                <p>
-                    ${comp3.render()}
-                </p>
-                <span>分隔符</span>
-                ${comp2.render({name:this.state.name},'<i>children<i>')}
-            </div>`;
-}
-comp2.template=function(){
-    var _this = this
-    return `
-            <p>
-                this.props.name: ${(!!this.props.name?this.props.name:'为空')}
-            </p>
-            <div>
-                this.children
-            </div>
-            <strong>
-                ${this.state.name}
-            </strong>
-            `;
-}
-comp3.template=function(){
-    return `<p>${this.state.name}</p>`;
-}
-
-    renderToDom(comp1.render(),document.getElementById('app'));
-    document.getElementById('change').onclick=function(){
-        console.time();
-        comp1.setState('name',new Date().getTime());
-        // comp3.setState('name',Math.random()*100);
-        console.timeEnd();
+})
+var c3 = new Component({
+    template:function(){
+        return    `<idv>
+                        <h2>cp3</h2>
+                        <i>${this.state.a}</i>
+                        <button>测试2</button>
+                    </idv>`
+    },
+    name:"cp3",
+    drawEvents(fragment){
+        var _this = this;
+        fragment.querySelector('button').addEventListener('click',_this.clickHandle)
+    },
+    clickHandle(){
+        console.log((new Date().getTime()));
     }
+})
+var data = {
+    name:'data-name',
+    img:'KV_pc.jpg'
+}
+console.time();
+renderToDom(c1.render(JSON.stringify(data)),document.getElementById('app'));
+console.timeEnd();
+document.getElementById('change').onclick=function(){
+    console.time();
+    // c1.reRender(JSON.stringify({'name':new Date().getTime()}));
+    // comp3.setState('name',Math.random()*100);
+    c1.setState('img','KV_index_pc@2x.jpg')
+    console.timeEnd();
+}
 </script>
 </html>
+<!--
+    //优先生成fragment，然后进行节点读取component元素，如果其父级没有component，就进行渲染替换，然后绑定事件
+    <idv>
+        <div>
+
+        </div>
+        <component id="componentName1" data-level=1  props={a:"a"}>
+            <div>1</div>
+            <p>2</p>
+            <component id="component2" data-level=2  props={b:"b"}></component>
+        </component>
+        <div>
+
+        </div>
+    </idv>
+ -->
